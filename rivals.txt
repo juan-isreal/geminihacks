@@ -256,4 +256,189 @@ local success, err = pcall(function()
 	local SilentCircle = nil
 	local AimbotCircle = nil
 
-	if DrawingSupported and Drawing
+	if DrawingSupported and DrawingLib then
+		pcall(function()
+			-- Silent Aim Circle (Green/Cyan)
+			SilentCircle = Drawing.new("Circle")
+			SilentCircle.Thickness = 1.5
+			SilentCircle.NumSides = 48
+			SilentCircle.Filled = false
+			SilentCircle.Transparency = 0.8
+			SilentCircle.Color = Color3.fromRGB(0, 255, 120)
+			SilentCircle.Visible = false
+
+			-- Aimbot Circle (Purple)
+			AimbotCircle = Drawing.new("Circle")
+			AimbotCircle.Thickness = 1.5
+			AimbotCircle.NumSides = 48
+			AimbotCircle.Filled = false
+			AimbotCircle.Transparency = 0.8
+			AimbotCircle.Color = Color3.fromRGB(115, 87, 255)
+			AimbotCircle.Visible = false
+		end)
+	end
+
+	-- Helper: Get closest target within a specific radius from screen center
+	local function getTargetInRadius(maxRadius)
+		local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+		local closestTarget = nil
+		local shortestDist = maxRadius
+
+		for _, player in ipairs(Players:GetPlayers()) do
+			if player ~= LocalPlayer and player.Character then
+				local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+				local targetPart = player.Character:FindFirstChild(Config.Combat.TargetPart)
+
+				if humanoid and humanoid.Health > 0 and targetPart then
+					local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+					if onScreen then
+						local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+						if dist < shortestDist then
+							shortestDist = dist
+							closestTarget = targetPart
+						end
+					end
+				end
+			end
+		end
+		return closestTarget
+	end
+
+	-- Silent Aim Raycast Hook (Curves bullets towards targets inside Silent Aim circle)
+	pcall(function()
+		local oldNamecall
+		oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+			local method = getnamecallmethod()
+			local args = {...}
+
+			if Config.Combat.SilentAim and self == workspace and (method == "Raycast" or method == "FindPartOnRay" or method == "FindPartOnRayWithIgnoreList") then
+				local targetPart = getTargetInRadius(Config.Combat.SilentAimFOV)
+				if targetPart then
+					if method == "Raycast" then
+						local origin = args[1]
+						local direction = (targetPart.Position - origin).Unit * args[2].Magnitude
+						args[2] = direction
+					elseif method == "FindPartOnRay" or method == "FindPartOnRayWithIgnoreList" then
+						local ray = args[1]
+						local direction = (targetPart.Position - ray.Origin).Unit * ray.Direction.Magnitude
+						args[1] = Ray.new(ray.Origin, direction)
+					end
+				end
+			end
+
+			return oldNamecall(self, unpack(args))
+		end)
+	end)
+
+	-- ESP Storage Table
+	local ESPObjects = {}
+	local function removeESP(player)
+		if ESPObjects[player] then
+			if ESPObjects[player].Box then ESPObjects[player].Box:Remove() end
+			if ESPObjects[player].Tracer then ESPObjects[player].Tracer:Remove() end
+			ESPObjects[player] = nil
+		end
+	end
+
+	-- Main Runtime Render Loop
+	RunService.RenderStepped:Connect(function()
+		local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
+		-- 1. Update Silent Aim Circle Display
+		if SilentCircle then
+			SilentCircle.Visible = Config.Combat.DrawSilentFOV
+			SilentCircle.Radius = Config.Combat.SilentAimFOV
+			SilentCircle.Position = screenCenter
+		end
+
+		-- 2. Update Aimbot Circle Display
+		if AimbotCircle then
+			AimbotCircle.Visible = Config.Combat.DrawAimbotFOV
+			AimbotCircle.Radius = Config.Combat.AimbotFOV
+			AimbotCircle.Position = screenCenter
+		end
+
+		-- 3. Aimbot Execution
+		if Config.Combat.Aimbot then
+			local target = getTargetInRadius(Config.Combat.AimbotFOV)
+			if target then
+				local currentCFrame = Camera.CFrame
+				local targetCFrame = CFrame.new(currentCFrame.Position, target.Position)
+				Camera.CFrame = currentCFrame:Lerp(targetCFrame, 1 / Config.Combat.Smoothing)
+			end
+		end
+
+		-- 4. ESP Rendering Loop
+		if DrawingSupported and DrawingLib then
+			for _, player in ipairs(Players:GetPlayers()) do
+				if player ~= LocalPlayer then
+					if Config.Visuals.ESPEnabled and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+						local char = player.Character
+						local humanoid = char:FindFirstChildOfClass("Humanoid")
+						local rootPart = char:FindFirstChild("HumanoidRootPart")
+
+						if humanoid and humanoid.Health > 0 and rootPart then
+							local rootPos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
+
+							if not ESPObjects[player] then
+								ESPObjects[player] = {
+									Box = Drawing.new("Square"),
+									Tracer = Drawing.new("Line")
+								}
+								ESPObjects[player].Box.Thickness = 1
+								ESPObjects[player].Box.Filled = false
+								ESPObjects[player].Box.Color = Color3.fromRGB(255, 60, 100)
+
+								ESPObjects[player].Tracer.Thickness = 1
+								ESPObjects[player].Tracer.Color = Color3.fromRGB(255, 60, 100)
+							end
+
+							local espData = ESPObjects[player]
+
+							if onScreen then
+								if Config.Visuals.BoxESP then
+									local head = char:FindFirstChild("Head")
+									if head then
+										local headPos = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
+										local legPos = Camera:WorldToViewportPoint(rootPart.Position - Vector3.new(0, 3, 0))
+										local height = math.abs(headPos.Y - legPos.Y)
+										local width = height / 2
+
+										espData.Box.Size = Vector2.new(width, height)
+										espData.Box.Position = Vector2.new(rootPos.X - width / 2, headPos.Y)
+										espData.Box.Visible = true
+									else
+										espData.Box.Visible = false
+									end
+								else
+									espData.Box.Visible = false
+								end
+
+								if Config.Visuals.Tracers then
+									espData.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+									espData.Tracer.To = Vector2.new(rootPos.X, rootPos.Y)
+									espData.Tracer.Visible = true
+								else
+									espData.Tracer.Visible = false
+								end
+							else
+								espData.Box.Visible = false
+								espData.Tracer.Visible = false
+							end
+						else
+							removeESP(player)
+						end
+					else
+						removeESP(player)
+					end
+				end
+			end
+		end
+	end)
+
+	Rayfield:LoadConfiguration()
+end)
+
+if not success then
+	warn("[Mobile FPS Suite Error]: " .. tostring(err))
+end
