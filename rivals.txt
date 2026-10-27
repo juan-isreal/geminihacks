@@ -1,0 +1,297 @@
+--!strict
+-- FPS Utility Suite - Mobile Optimized Version
+local success, err = pcall(function()
+	local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+	local Players = game:GetService("Players")
+	local RunService = game:GetService("RunService")
+	local Workspace = game:GetService("Workspace")
+	local LocalPlayer = Players.LocalPlayer
+	local Camera = Workspace.CurrentCamera
+
+	-- Configuration State
+	local Config = {
+		Combat = {
+			SilentAim = false,
+			Aimbot = false,
+			Triggerbot = false,
+			FOVCircle = true,
+			FOVRadius = 120,
+			TargetPart = "Head",
+			Smoothing = 5,
+		},
+		Visuals = {
+			ESPEnabled = false,
+			BoxESP = false,
+			Tracers = false,
+			ShowNames = false,
+		},
+		Misc = {
+			SpeedMultiplier = 16,
+			JumpPower = 50,
+		}
+	}
+
+	---------------------------------------------------------
+	-- WINDOW INITIALIZATION
+	---------------------------------------------------------
+	local Window = Rayfield:CreateWindow({
+	   Name = "Project Aura | Mobile FPS Suite",
+	   LoadingTitle = "FPS Utility Suite (Mobile)",
+	   LoadingSubtitle = "by Project Aura",
+	   ConfigurationSaving = {
+	      Enabled = true,
+	      FolderName = "ProjectAuraMobile",
+	      FileName = "FPSConfig"
+	   },
+	   KeySystem = false,
+	})
+
+	---------------------------------------------------------
+	-- TABS
+	---------------------------------------------------------
+	local CombatTab = Window:CreateTab("Combat", 4483362458)
+	local AimTab = Window:CreateTab("Aim Settings", 4483362458)
+	local VisualsTab = Window:CreateTab("Visuals", 4483362458)
+	local MiscTab = Window:CreateTab("Miscellaneous", 4483362458)
+	local SettingsTab = Window:CreateTab("Settings", 4483362458)
+
+	---------------------------------------------------------
+	-- 1. COMBAT TAB
+	---------------------------------------------------------
+	CombatTab:CreateSection("Aim Simulations")
+
+	CombatTab:CreateToggle({
+	   Name = "Silent-aim simulation",
+	   CurrentValue = Config.Combat.SilentAim,
+	   Flag = "SilentAim",
+	   Callback = function(Value)
+	      Config.Combat.SilentAim = Value
+	   end,
+	})
+
+	CombatTab:CreateToggle({
+	   Name = "Aimbot training",
+	   CurrentValue = Config.Combat.Aimbot,
+	   Flag = "Aimbot",
+	   Callback = function(Value)
+	      Config.Combat.Aimbot = Value
+	   end,
+	})
+
+	CombatTab:CreateToggle({
+	   Name = "Triggerbot simulation",
+	   CurrentValue = Config.Combat.Triggerbot,
+	   Flag = "Triggerbot",
+	   Callback = function(Value)
+	      Config.Combat.Triggerbot = Value
+	   end,
+	})
+
+	---------------------------------------------------------
+	-- 2. AIM SETTINGS TAB
+	---------------------------------------------------------
+	AimTab:CreateSection("Configuration")
+
+	AimTab:CreateToggle({
+	   Name = "Draw FOV Circle",
+	   CurrentValue = Config.Combat.FOVCircle,
+	   Flag = "FOVCircle",
+	   Callback = function(Value)
+	      Config.Combat.FOVCircle = Value
+	   end,
+	})
+
+	AimTab:CreateSlider({
+	   Name = "FOV Circle Radius",
+	   Range = {30, 350},
+	   Increment = 1,
+	   Suffix = "px",
+	   CurrentValue = Config.Combat.FOVRadius,
+	   Flag = "FOVRadius",
+	   Callback = function(Value)
+	      Config.Combat.FOVRadius = Value
+	   end,
+	})
+
+	AimTab:CreateDropdown({
+	   Name = "Target Hitbox",
+	   Options = {"Head", "Torso", "HumanoidRootPart"},
+	   CurrentOption = {Config.Combat.TargetPart},
+	   MultipleOptions = false,
+	   Flag = "TargetPart",
+	   Callback = function(Option)
+	      if type(Option) == "table" then
+	         Config.Combat.TargetPart = Option[1]
+	      else
+	         Config.Combat.TargetPart = Option
+	      end
+	   end,
+	})
+
+	AimTab:CreateSlider({
+	   Name = "Aimbot Smoothing",
+	   Range = {1, 20},
+	   Increment = 1,
+	   Suffix = "",
+	   CurrentValue = Config.Combat.Smoothing,
+	   Flag = "Smoothing",
+	   Callback = function(Value)
+	      Config.Combat.Smoothing = Value
+	   end,
+	})
+
+	---------------------------------------------------------
+	-- 3. VISUALS TAB
+	---------------------------------------------------------
+	VisualsTab:CreateSection("ESP Suite")
+
+	VisualsTab:CreateToggle({
+	   Name = "Master ESP Switch",
+	   CurrentValue = Config.Visuals.ESPEnabled,
+	   Flag = "ESPEnabled",
+	   Callback = function(Value)
+	      Config.Visuals.ESPEnabled = Value
+	   end,
+	})
+
+	VisualsTab:CreateToggle({
+	   Name = "Box ESP",
+	   CurrentValue = Config.Visuals.BoxESP,
+	   Flag = "BoxESP",
+	   Callback = function(Value)
+	      Config.Visuals.BoxESP = Value
+	   end,
+	})
+
+	---------------------------------------------------------
+	-- 4. MISCELLANEOUS TAB
+	---------------------------------------------------------
+	MiscTab:CreateSection("Character Enhancements")
+
+	MiscTab:CreateSlider({
+	   Name = "WalkSpeed Modifier",
+	   Range = {16, 120},
+	   Increment = 1,
+	   Suffix = "spd",
+	   CurrentValue = Config.Misc.SpeedMultiplier,
+	   Flag = "WalkSpeed",
+	   Callback = function(Value)
+	      Config.Misc.SpeedMultiplier = Value
+	      local char = LocalPlayer.Character
+	      if char and char:FindFirstChildOfClass("Humanoid") then
+	         char:FindFirstChildOfClass("Humanoid").WalkSpeed = Value
+	      end
+	   end,
+	})
+
+	MiscTab:CreateSlider({
+	   Name = "JumpPower Modifier",
+	   Range = {50, 200},
+	   Increment = 1,
+	   Suffix = "jp",
+	   CurrentValue = Config.Misc.JumpPower,
+	   Flag = "JumpPower",
+	   Callback = function(Value)
+	      Config.Misc.JumpPower = Value
+	      local char = LocalPlayer.Character
+	      if char and char:FindFirstChildOfClass("Humanoid") then
+	         char:FindFirstChildOfClass("Humanoid").JumpPower = Value
+	      end
+	   end,
+	})
+
+	---------------------------------------------------------
+	-- 5. SETTINGS TAB
+	---------------------------------------------------------
+	SettingsTab:CreateSection("Interface Management")
+
+	SettingsTab:CreateButton({
+	   Name = "Destroy GUI",
+	   Callback = function()
+	      Rayfield:Destroy()
+	   end,
+	})
+
+	---------------------------------------------------------
+	-- MOBILE BACKEND LOGIC
+	---------------------------------------------------------
+
+	-- Character Respawn Speed & Jump Persistence Hook
+	LocalPlayer.CharacterAdded:Connect(function(char)
+		local humanoid = char:WaitForChild("Humanoid", 5)
+		if humanoid then
+			humanoid.WalkSpeed = Config.Misc.SpeedMultiplier
+			humanoid.JumpPower = Config.Misc.JumpPower
+		end
+	end)
+
+	-- FOV Circle Initialization (Drawing API)
+	local DrawingSupported, DrawingLib = pcall(function() return Drawing end)
+	local FOVCircle = nil
+
+	if DrawingSupported and DrawingLib then
+		pcall(function()
+			FOVCircle = Drawing.new("Circle")
+			FOVCircle.Thickness = 1.5
+			FOVCircle.NumSides = 32
+			FOVCircle.Filled = false
+			FOVCircle.Transparency = 0.8
+			FOVCircle.Color = Color3.fromRGB(0, 230, 255)
+			FOVCircle.Visible = false
+		end)
+	end
+
+	-- Helper: Get closest target to the center of the mobile screen
+	local function getClosestTargetMobile()
+		local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+		local closestTarget = nil
+		local shortestDist = Config.Combat.FOVRadius
+
+		for _, player in ipairs(Players:GetPlayers()) do
+			if player ~= LocalPlayer and player.Character then
+				local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+				local targetPart = player.Character:FindFirstChild(Config.Combat.TargetPart)
+
+				if humanoid and humanoid.Health > 0 and targetPart then
+					local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+					if onScreen then
+						local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+						if dist < shortestDist then
+							shortestDist = dist
+							closestTarget = targetPart
+						end
+					end
+				end
+			end
+		end
+		return closestTarget
+	end
+
+	-- Main Runtime Loop
+	RunService.RenderStepped:Connect(function()
+		local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
+		-- Update FOV Circle at Screen Center for Mobile
+		if FOVCircle then
+			FOVCircle.Visible = Config.Combat.FOVCircle
+			FOVCircle.Radius = Config.Combat.FOVRadius
+			FOVCircle.Position = screenCenter
+		end
+
+		-- Aimbot Execution (Mobile Center Screen Tracking)
+		if Config.Combat.Aimbot then
+			local target = getClosestTargetMobile()
+			if target then
+				local targetCFrame = CFrame.new(Camera.CFrame.Position, target.Position)
+				Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, 1 / math.clamp(Config.Combat.Smoothing, 1, 20))
+			end
+		end
+	end)
+
+	Rayfield:LoadConfiguration()
+end)
+
+if not success then
+	warn("[Mobile FPS Suite Error]: " .. tostring(err))
+end
