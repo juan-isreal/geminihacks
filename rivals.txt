@@ -1,5 +1,5 @@
 --!strict
--- FPS Utility Suite - Fully Functional Mobile Script
+-- FPS Utility Suite - Mobile Silent Aim & Aimbot Suite
 local success, err = pcall(function()
 	local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
@@ -12,13 +12,16 @@ local success, err = pcall(function()
 	-- Configuration State
 	local Config = {
 		Combat = {
-			SilentAim = false,
 			Aimbot = false,
-			Triggerbot = false,
-			FOVCircle = true,
-			FOVRadius = 150,
-			TargetPart = "Head",
+			AimbotFOV = 120,
 			Smoothing = 8,
+			
+			SilentAim = false,
+			SilentAimFOV = 180,
+			DrawSilentFOV = true,
+			DrawAimbotFOV = true,
+			
+			TargetPart = "Head",
 		},
 		Visuals = {
 			ESPEnabled = false,
@@ -37,7 +40,7 @@ local success, err = pcall(function()
 	local Window = Rayfield:CreateWindow({
 	   Name = "Project Aura | Mobile FPS Suite",
 	   LoadingTitle = "FPS Utility Suite (Mobile)",
-	   LoadingSubtitle = "by Project Aura",
+	   LoadingSubtitle = "Advanced Silent Aim & ESP",
 	   ConfigurationSaving = {
 	      Enabled = true,
 	      FolderName = "ProjectAuraMobile",
@@ -56,12 +59,12 @@ local success, err = pcall(function()
 	local SettingsTab = Window:CreateTab("Settings", 4483362458)
 
 	---------------------------------------------------------
-	-- 1. COMBAT TAB
+	-- 1. COMBAT TAB (Silent Aim & Aimbot)
 	---------------------------------------------------------
-	CombatTab:CreateSection("Aim Simulations")
+	CombatTab:CreateSection("Silent Aim (Bullet Curving)")
 
 	CombatTab:CreateToggle({
-	   Name = "Silent-aim simulation",
+	   Name = "Silent Aim Enable",
 	   CurrentValue = Config.Combat.SilentAim,
 	   Flag = "SilentAim",
 	   Callback = function(Value)
@@ -70,7 +73,30 @@ local success, err = pcall(function()
 	})
 
 	CombatTab:CreateToggle({
-	   Name = "Aimbot training",
+	   Name = "Draw Silent Aim Circle",
+	   CurrentValue = Config.Combat.DrawSilentFOV,
+	   Flag = "DrawSilentFOV",
+	   Callback = function(Value)
+	      Config.Combat.DrawSilentFOV = Value
+	   end,
+	})
+
+	CombatTab:CreateSlider({
+	   Name = "Silent Aim Radius",
+	   Range = {50, 400},
+	   Increment = 5,
+	   Suffix = "px",
+	   CurrentValue = Config.Combat.SilentAimFOV,
+	   Flag = "SilentAimFOV",
+	   Callback = function(Value)
+	      Config.Combat.SilentAimFOV = Value
+	   end,
+	})
+
+	CombatTab:CreateSection("Aimbot Training")
+
+	CombatTab:CreateToggle({
+	   Name = "Aimbot Enable",
 	   CurrentValue = Config.Combat.Aimbot,
 	   Flag = "Aimbot",
 	   Callback = function(Value)
@@ -81,26 +107,26 @@ local success, err = pcall(function()
 	---------------------------------------------------------
 	-- 2. AIM SETTINGS TAB
 	---------------------------------------------------------
-	AimTab:CreateSection("Configuration")
+	AimTab:CreateSection("FOV & Hitbox Configuration")
 
 	AimTab:CreateToggle({
-	   Name = "Draw FOV Circle",
-	   CurrentValue = Config.Combat.FOVCircle,
-	   Flag = "FOVCircle",
+	   Name = "Draw Aimbot FOV Circle",
+	   CurrentValue = Config.Combat.DrawAimbotFOV,
+	   Flag = "DrawAimbotFOV",
 	   Callback = function(Value)
-	      Config.Combat.FOVCircle = Value
+	      Config.Combat.DrawAimbotFOV = Value
 	   end,
 	})
 
 	AimTab:CreateSlider({
-	   Name = "FOV Circle Radius",
+	   Name = "Aimbot FOV Radius",
 	   Range = {50, 400},
 	   Increment = 5,
 	   Suffix = "px",
-	   CurrentValue = Config.Combat.FOVRadius,
-	   Flag = "FOVRadius",
+	   CurrentValue = Config.Combat.AimbotFOV,
+	   Flag = "AimbotFOV",
 	   Callback = function(Value)
-	      Config.Combat.FOVRadius = Value
+	      Config.Combat.AimbotFOV = Value
 	   end,
 	})
 
@@ -120,7 +146,7 @@ local success, err = pcall(function()
 	})
 
 	AimTab:CreateSlider({
-	   Name = "Aimbot Smoothing (Higher = Smoother)",
+	   Name = "Aimbot Smoothing",
 	   Range = {2, 25},
 	   Increment = 1,
 	   Suffix = "",
@@ -142,10 +168,6 @@ local success, err = pcall(function()
 	   Flag = "ESPEnabled",
 	   Callback = function(Value)
 	      Config.Visuals.ESPEnabled = Value
-	      if not Value then
-	         -- Clean up ESP drawings when turned off
-	         -- (Handled in loop)
-	      end
 	   end,
 	})
 
@@ -217,7 +239,7 @@ local success, err = pcall(function()
 	})
 
 	---------------------------------------------------------
-	-- MOBILE BACKEND ENGINE
+	-- BACKEND ENGINE & TARGETING LOGIC
 	---------------------------------------------------------
 
 	-- Character Respawn Speed & Jump Persistence
@@ -229,165 +251,9 @@ local success, err = pcall(function()
 		end
 	end)
 
-	-- FOV Circle & Drawing Initialization
+	-- Drawing API Setup (Two separate circles for Silent Aim and Aimbot)
 	local DrawingSupported, DrawingLib = pcall(function() return Drawing end)
-	local FOVCircle = nil
+	local SilentCircle = nil
+	local AimbotCircle = nil
 
-	if DrawingSupported and DrawingLib then
-		pcall(function()
-			FOVCircle = Drawing.new("Circle")
-			FOVCircle.Thickness = 1.5
-			FOVCircle.NumSides = 48
-			FOVCircle.Filled = false
-			FOVCircle.Transparency = 0.7
-			FOVCircle.Color = Color3.fromRGB(115, 87, 255)
-			FOVCircle.Visible = false
-		end)
-	end
-
-	-- ESP Storage Table
-	local ESPObjects = {}
-
-	local function removeESP(player)
-		if ESPObjects[player] then
-			if ESPObjects[player].Box then ESPObjects[player].Box:Remove() end
-			if ESPObjects[player].Tracer then ESPObjects[player].Tracer:Remove() end
-			ESPObjects[player] = nil
-		end
-	end
-
-	-- Helper: Get closest valid target to screen center (crosshair)
-	local function getClosestTarget()
-		local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-		local closestTarget = nil
-		local shortestDist = Config.Combat.FOVRadius
-
-		for _, player in ipairs(Players:GetPlayers()) do
-			if player ~= LocalPlayer and player.Character then
-				local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-				local targetPart = player.Character:FindFirstChild(Config.Combat.TargetPart)
-
-				if humanoid and humanoid.Health > 0 and targetPart then
-					local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
-					if onScreen then
-						local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
-						if dist < shortestDist then
-							shortestDist = dist
-							closestTarget = targetPart
-						end
-					end
-				end
-			end
-		end
-		return closestTarget
-	end
-
-	-- Main Runtime Render Loop
-	RunService.RenderStepped:Connect(function()
-		local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-
-		-- 1. FOV Circle Update
-		if FOVCircle then
-			FOVCircle.Visible = Config.Combat.FOVCircle
-			FOVCircle.Radius = Config.Combat.FOVRadius
-			FOVCircle.Position = screenCenter
-		end
-
-		-- 2. Smooth Mobile Aimbot (Does not break touch movement)
-		if Config.Combat.Aimbot then
-			local target = getClosestTarget()
-			if target then
-				local currentCFrame = Camera.CFrame
-				local targetCFrame = CFrame.new(currentCFrame.Position, target.Position)
-				-- Smooth lerp divisor prevents jarring snapping on mobile touch screens
-				Camera.CFrame = currentCFrame:Lerp(targetCFrame, 1 / Config.Combat.Smoothing)
-			end
-		end
-
-		-- 3. Silent Aim Simulation (Redirects camera/aim slightly when tools are active)
-		if Config.Combat.SilentAim then
-			local target = getClosestTarget()
-			local char = LocalPlayer.Character
-			local tool = char and char:FindFirstChildOfClass("Tool")
-			if target and tool then
-				-- Snaps view instantaneously to target upon firing simulation
-				Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Position)
-			end
-		end
-
-		-- 4. ESP Rendering Loop
-		if DrawingSupported and DrawingLib then
-			for _, player in ipairs(Players:GetPlayers()) do
-				if player ~= LocalPlayer then
-					if Config.Visuals.ESPEnabled and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-						local char = player.Character
-						local humanoid = char:FindFirstChildOfClass("Humanoid")
-						local rootPart = char.FindFirstChild(char, "HumanoidRootPart")
-
-						if humanoid and humanoid.Health > 0 and rootPart then
-							local rootPos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
-
-							if not ESPObjects[player] then
-								ESPObjects[player] = {
-									Box = Drawing.new("Square"),
-									Tracer = Drawing.new("Line")
-								}
-								ESPObjects[player].Box.Thickness = 1
-								ESPObjects[player].Box.Filled = false
-								ESPObjects[player].Box.Color = Color3.fromRGB(255, 60, 100)
-
-								ESPObjects[player].Tracer.Thickness = 1
-								ESPObjects[player].Tracer.Color = Color3.fromRGB(255, 60, 100)
-							end
-
-							local espData = ESPObjects[player]
-
-							if onScreen then
-								-- Box ESP Calculations
-								if Config.Visuals.BoxESP then
-									local head = char:FindFirstChild("Head")
-									if head then
-										local headPos = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
-										local legPos = Camera:WorldToViewportPoint(rootPart.Position - Vector3.new(0, 3, 0))
-										local height = math.abs(headPos.Y - legPos.Y)
-										local width = height / 2
-
-										espData.Box.Size = Vector2.new(width, height)
-										espData.Box.Position = Vector2.new(rootPos.X - width / 2, headPos.Y)
-										espData.Box.Visible = true
-									else
-										espData.Box.Visible = false
-									end
-								else
-									espData.Box.Visible = false
-								end
-
-								-- Tracer ESP Calculations
-								if Config.Visuals.Tracers then
-									espData.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
-									espData.Tracer.To = Vector2.new(rootPos.X, rootPos.Y)
-									espData.Tracer.Visible = true
-								else
-									espData.Tracer.Visible = false
-								end
-							else
-								espData.Box.Visible = false
-								espData.Tracer.Visible = false
-							end
-						else
-							removeESP(player)
-						end
-					else
-						removeESP(player)
-					end
-				end
-			end
-		end
-	end)
-
-	Rayfield:LoadConfiguration()
-end)
-
-if not success then
-	warn("[Mobile FPS Suite Error]: " .. tostring(err))
-end
+	if DrawingSupported and Drawing
